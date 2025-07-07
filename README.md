@@ -12,6 +12,6 @@ A visually engaging weather application that provides real-time weather updates,
 
 ## 📞 Contact
 
-- 📧 Email: [infotek.rlp@gmail.com](mailto:infotek.rlp@gmail.com)
-- 🌐 Portfolio: [visit Here](https://earnchamp.github.io/Chinmaya-portfolio)
-- 🔗 LinkedIn: [linkedin.com/in/chinmaya775](https://www.linkedin.com/in/chinmaya775/)
+- 📧 Email: [Reach Out Here](mailto:infotek.rlp@gmail.com)
+- 🌐 Portfolio: [Visit Here](https://earnchamp.github.io/Chinmaya-portfolio)
+- 🔗 LinkedIn: [Visit Here](https://www.linkedin.com/in/chinmaya775/)
