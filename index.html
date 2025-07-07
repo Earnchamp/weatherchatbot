@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="style.css">
+  <title>Weather App</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+<body>
+
+  <h1>Weather Forecast</h1>
+  <div id="container">
+    <input type="text" id="cityinput" placeholder="Enter your city">
+    <button onclick="clickd()">Search</button>
+    </div>
+  <div id="weather-result">
+  <div class="loader"></div>
+  <div class="loading-text">Fetching your local weather...</div>
+</div>
+  <button id="speak-weather" style="margin-top: 10px;">🔊 Speak Weather</button>
+  <h2>Upcoming Forecast</h2>
+<div class="forecast-scroll-wrapper">
+    <div class="forecast-scroll-container" id="forecast-days"></div>
+  <button id="scroll-left" class="scroll-btn">&#9664;</button>
+  <button id="scroll-right" class="scroll-btn">&#9654;</button>
+</div>
+<div id="chatbot-toggle">🤖</div>
+<div id="chatbot-box">
+  <div id="chatbot-header">
+    🌤️ Weather Chatbot
+    <span id="chatbot-close">×</span>
+  </div>
+  <div id="chatbot-messages"></div>
+  <div id="chatbot-suggestions"></div>
+  <div id="chatbot-input-area">
+    <input type="text" id="chatbot-input" placeholder="Ask me anything..." />
+    <button onclick="sendChat()">➤</button>
+  </div>
+</div>
+
+  <script>
+    const API_KEY = "4236a7baf58140d3985142337250707";
+
+    function getLocationAndWeather() {
+      if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            fetchWeatherByCoords(lat, lon);
+          },
+          (error) => {
+            console.warn("GPS failed, using IP fallback...");
+            fetch("https://ipapi.co/json")
+              .then(res => res.json())
+              .then(data => fetchWeatherByCoords(data.latitude, data.longitude));
+          }
+        );
+      } else {
+        alert("Geolocation is not supported by this browser.");
+      }
+    }
+
+    function fetchWeatherByCoords(lat, lon) {
+  const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${lat},${lon}&days=5&aqi=yes&alerts=no`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+  document.getElementById("weather-result").innerHTML = ""; // Clear loader
+  displayCurrentWeather(data);
+  displayForecast(data.forecast.forecastday);
+  })
+    .catch(err => {
+      console.error("Error fetching weather:", err);
+      document.getElementById("weather-result").innerHTML =
+        "<p>Error loading weather. Please try again.</p>";
+    });
+}
+
+    function displayCurrentWeather(data) {
+      window.latestWeatherData = data;
+      const current = data.current;
+      const location = data.location;
+
+      document.getElementById("weather-result").innerHTML = `
+        <h2>${location.name}, ${location.country}</h2>
+        <p><img src="https:${current.condition.icon}" alt=""> ${current.condition.text}</p>
+        <p><span class="label">Temp:</span> ${current.temp_c}°C</p>
+        <p><span class="label">Humidity:</span> ${current.humidity}%</p>
+        <p><span class="label">Wind:</span> ${current.wind_kph} km/h</p>
+        <p><span class="label">UV Index:</span> ${current.uv}</p>
+        <p><span class="label">Air Quality:</span> PM2.5 ${current.air_quality.pm2_5.toFixed(1)}</p>
+      `;
+    }
+
+    function clickd(){
+  const city = document.getElementById("cityinput").value.trim();
+  if (!city) {
+    alert("Please enter a city name.");
+    return;
+  }
+
+  const url = `https://api.weatherapi.com/v1/forecast.json?key=${API_KEY}&q=${city}&days=5&aqi=yes&alerts=no`;
+
+  document.getElementById("weather-result").innerHTML = `
+    <div class="loader"></div>
+    <div class="loading-text">Fetching weather for ${city}...</div>
+  `;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      document.getElementById("weather-result").innerHTML = "";
+      displayCurrentWeather(data);
+      displayForecast(data.forecast.forecastday);
+    })
+    .catch(err => {
+      console.error("Error fetching weather:", err);
+      document.getElementById("weather-result").innerHTML =
+        "<p>Error loading weather. Please try again.</p>";
+    });
+
+  // Optional: Clear the input after search
+  document.getElementById("cityinput").value = "";
+}
+
+
+    document.getElementById("scroll-left").onclick = () => {
+  document.getElementById("forecast-days").scrollBy({ left: -200, behavior: 'smooth' });
+};
+
+document.getElementById("scroll-right").onclick = () => {
+  document.getElementById("forecast-days").scrollBy({ left: 200, behavior: 'smooth' });
+};
+
+function displayForecast(forecastDays) {
+  const forecastContainer = document.getElementById("forecast-days");
+  forecastContainer.innerHTML = "";
+
+  forecastDays.forEach(day => {
+    const hourlyTemps = day.hour.map(h => h.temp_c);
+    const hourlyLabels = day.hour.map(h => h.time.split(" ")[1]);
+
+    const canvasId = `chart-${day.date.replace(/-/g, "")}`;
+
+    const html = `
+      <div class="forecast-day">
+        <p><strong>${day.date}</strong></p>
+        <img src="https:${day.day.condition.icon}" alt="${day.day.condition.text}">
+        <p>${day.day.condition.text}</p>
+        <p>🌡️ ${day.day.avgtemp_c}°C</p>
+        <p>💧 ${day.day.daily_chance_of_rain}% Rain</p>
+        <p>🌅 ${day.astro.sunrise} | 🌇 ${day.astro.sunset}</p>
+        <canvas class="hourly-chart" id="${canvasId}"></canvas>
+      </div>
+    `;
+    forecastContainer.innerHTML += html;
+
+    // Wait for DOM, then draw chart
+    setTimeout(() => {
+      drawTempChart(canvasId, hourlyLabels, hourlyTemps);
+    }, 100);
+  });
+}
+
+function drawTempChart(canvasId, labels, data) {
+  new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: "Temp °C",
+        data: data,
+        backgroundColor: "rgba(0,121,107,0.2)",
+        borderColor: "#00796b",
+        borderWidth: 2,
+        pointRadius: 1,
+        fill: true,
+        tension: 0.4,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { display: false },
+        y: {
+          ticks: { color: "#444", font: { size: 10 } },
+          beginAtZero: false
+        }
+      }
+    }
+  });
+}
+
+document.getElementById("speak-weather").addEventListener("click", () => {
+  const current = window.latestWeatherData?.current;
+  const location = window.latestWeatherData?.location;
+
+  if (!current || !location) {
+    alert("Weather data not loaded yet.");
+    return;
+  }
+
+  const summary = `Today in ${location.name}, it's ${current.condition.text} with a temperature of ${current.temp_c} degrees Celsius. 
+  Humidity is ${current.humidity} percent, wind speed is ${current.wind_kph} kilometers per hour, 
+  and the air quality PM two point five level is ${current.air_quality.pm2_5.toFixed(1)}.`;
+
+  const utterance = new SpeechSynthesisUtterance(summary);
+  utterance.lang = 'en-IN';
+  utterance.rate = 1;
+  speechSynthesis.speak(utterance);
+});
+
+window.addEventListener("DOMContentLoaded", function () {
+  const toggle = document.getElementById("chatbot-toggle");
+  const closeBtn = document.getElementById("chatbot-close");
+  const box = document.getElementById("chatbot-box");
+
+  toggle.addEventListener("click", () => {
+    const isVisible = box.style.display === "flex";
+
+    if (!isVisible) {
+      // Show chatbot
+      box.style.display = "flex";
+
+      // Clear old messages and suggestions
+      document.getElementById("chatbot-messages").innerHTML = "";
+      document.getElementById("chatbot-suggestions").innerHTML = "";
+
+      // Show welcome + random suggestions
+      showChatbotWelcome();
+    } else {
+      // Hide chatbot
+      box.style.display = "none";
+    }
+  });
+
+  // One-time setup of close button
+  closeBtn.addEventListener("click", () => {
+    box.style.display = "none";
+  });
+});
+
+
+function sendChat() {
+  const input = document.getElementById("chatbot-input");
+  const message = input.value.trim();
+  if (!message) return;
+
+  appendMessage("You", message);
+  input.value = "";
+
+  // Simulate AI response
+  setTimeout(() => {
+    const response = getBotReply(message);
+    appendMessage("Bot", response);
+  }, 600);
+}
+
+function appendMessage(sender, text) {
+  const container = document.getElementById("chatbot-messages");
+  const msg = document.createElement("div");
+  msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
+  msg.style.marginBottom = "8px";
+  container.appendChild(msg);
+  container.scrollTop = container.scrollHeight;
+}
+
+function getBotReply(input) {
+  input = input.toLowerCase();
+  if (input.includes("weather")) return "Sure! I'm fetching the weather details...";
+  if (input.includes("rain")) return "It might rain depending on the humidity and cloud coverage.";
+  if (input.includes("uv")) return "UV index measures sun exposure risk. Above 6 is high.";
+  if (input.includes("air quality")) return "PM2.5 above 50 may be unhealthy for sensitive groups.";
+  return "I'm still learning! Try asking about temperature, rain, UV, or air quality.";
+}
+
+// 👇 Move these OUTSIDE getBotReply()
+const suggestionsList = [
+  "What's the weather today?",
+  "Will it rain tomorrow?",
+  "Tell me the UV index.",
+  "How's the air quality?",
+  "What’s the temperature now?"
+];
+
+function showChatbotWelcome() {
+  appendMessage("Bot", "👋 Welcome to Weather Chatbot. How can I help you?");
+  const suggestionBox = document.getElementById("chatbot-suggestions");
+  suggestionBox.innerHTML = "";
+
+  const randomSuggestions = suggestionsList.sort(() => 0.5 - Math.random()).slice(0, 3);
+  randomSuggestions.forEach(text => {
+    const btn = document.createElement("button");
+    btn.className = "chat-suggestion";
+    btn.textContent = text;
+    btn.onclick = () => handleSuggestionClick(text);
+    suggestionBox.appendChild(btn);
+  });
+}
+
+function handleSuggestionClick(text) {
+  appendMessage("You", text);
+  const response = getBotReply(text);
+  setTimeout(() => appendMessage("Bot", response), 500);
+}
+
+    // Run on page load
+    getLocationAndWeather();
+  </script>
+</div>
+</body>
+</html>
